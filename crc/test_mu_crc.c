@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "mu_crc.h"
+#include "mu_crc8.h"
 #include "mu_crc16_modbus.h"
 #include "mu_crc16_xmodem.h"
 
@@ -33,6 +34,39 @@ static int g_failed = 0;
 
 static const uint8_t g_ascii[] = "123456789";
 static const uint32_t g_ascii_len = 9;
+
+/* ==================== CRC-8 ==================== */
+
+static void test_crc8_vector( void )
+{
+    uint8_t result = mu_crc8_calc( g_ascii, g_ascii_len );
+
+    RUN_TEST( test_crc8_vector, 0xF4, 2, result );
+}
+
+static void test_crc8_empty( void )
+{
+    uint8_t result = mu_crc8_calc( NULL, 0 );
+
+    RUN_TEST( test_crc8_empty, 0x00, 2, result );
+}
+
+static void test_crc8_single( void )
+{
+    uint8_t data = 0x01;
+    uint8_t result = mu_crc8_calc( &data, 1 );
+
+    RUN_TEST( test_crc8_single, 0x07, 2, result );
+}
+
+static void test_crc8_continue( void )
+{
+    uint8_t one_shot = mu_crc8_calc( g_ascii, g_ascii_len );
+    uint8_t step1    = mu_crc8_calc( g_ascii, 4 );
+    uint8_t step2    = mu_crc8_continue( step1, g_ascii + 4, g_ascii_len - 4 );
+
+    RUN_TEST( test_crc8_continue, one_shot, 2, step2 );
+}
 
 /* ==================== CRC-16 MODBUS ==================== */
 
@@ -108,22 +142,22 @@ static void test_calc_ccitt( void )
     RUN_TEST( test_calc_ccitt, 0x31C3, 4, result );
 }
 
-/* ==================== 查表 vs 逐位一致性 ==================== */
+/* ==================== 查表 vs 逐位 ==================== */
 
 static void test_tbl_vs_bitwise_modbus( void )
 {
     mu_crc_params_t param = { 16, 0x8005, 0xFFFF, 0x0000, true, true };
-    uint32_t result_bit = mu_crc_calc( &param, g_ascii, g_ascii_len );
+    uint32_t result = mu_crc_calc( &param, g_ascii, g_ascii_len );
 
-    RUN_TEST( test_tbl_vs_bitwise_modbus, 0x4B37, 4, result_bit );
+    RUN_TEST( test_tbl_vs_bitwise_modbus, 0x4B37, 4, result );
 }
 
 static void test_tbl_vs_bitwise_xmodem( void )
 {
     mu_crc_params_t param = { 16, 0x1021, 0x0000, 0x0000, false, false };
-    uint32_t result_bit = mu_crc_calc( &param, g_ascii, g_ascii_len );
+    uint32_t result = mu_crc_calc( &param, g_ascii, g_ascii_len );
 
-    RUN_TEST( test_tbl_vs_bitwise_xmodem, 0x31C3, 4, result_bit );
+    RUN_TEST( test_tbl_vs_bitwise_xmodem, 0x31C3, 4, result );
 }
 
 static void test_tbl_null_table( void )
@@ -134,30 +168,22 @@ static void test_tbl_null_table( void )
     RUN_TEST( test_tbl_null_table, 0x00000000, 8, result );
 }
 
-/* ==================== continue 续算 ==================== */
+/* ==================== continue ==================== */
 
 static void test_continue_modbus( void )
 {
-    uint16_t one_shot = 0;
-    uint16_t step1 = 0;
-    uint16_t step2 = 0;
-
-    one_shot = mu_crc16_modbus( g_ascii, g_ascii_len );
-    step1    = mu_crc16_modbus( g_ascii, 4 );
-    step2    = mu_crc16_modbus_continue( step1, g_ascii + 4, g_ascii_len - 4 );
+    uint16_t one_shot = mu_crc16_modbus( g_ascii, g_ascii_len );
+    uint16_t step1    = mu_crc16_modbus( g_ascii, 4 );
+    uint16_t step2    = mu_crc16_modbus_continue( step1, g_ascii + 4, g_ascii_len - 4 );
 
     RUN_TEST( test_continue_modbus, one_shot, 4, step2 );
 }
 
 static void test_continue_xmodem( void )
 {
-    uint16_t one_shot = 0;
-    uint16_t step1 = 0;
-    uint16_t step2 = 0;
-
-    one_shot = mu_crc16_xmodem( g_ascii, g_ascii_len );
-    step1    = mu_crc16_xmodem( g_ascii, 4 );
-    step2    = mu_crc16_xmodem_continue( step1, g_ascii + 4, g_ascii_len - 4 );
+    uint16_t one_shot = mu_crc16_xmodem( g_ascii, g_ascii_len );
+    uint16_t step1    = mu_crc16_xmodem( g_ascii, 4 );
+    uint16_t step2    = mu_crc16_xmodem_continue( step1, g_ascii + 4, g_ascii_len - 4 );
 
     RUN_TEST( test_continue_xmodem, one_shot, 4, step2 );
 }
@@ -197,6 +223,13 @@ int main( int argc, char *argv[] )
 
         return 0;
     }
+
+    printf( "\n" );
+    printf( "=== CRC-8 ===\n" );
+    test_crc8_vector();
+    test_crc8_empty();
+    test_crc8_single();
+    test_crc8_continue();
 
     printf( "\n" );
     printf( "=== CRC-16 MODBUS ===\n" );
